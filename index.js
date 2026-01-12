@@ -37,7 +37,8 @@ const allowedOrigins = [
   'https://www.uxaah.com',
   'https://uxaah-new.onrender.com',
   'https://uxaah.vercel.app',
-  'https://*.vercel.app'
+  'https://*.vercel.app',
+  'https://uxah.webartstudios.in'
 ];
 
 // Better port handling
