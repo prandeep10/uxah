@@ -1,9 +1,6 @@
 // middleware/authMiddleware.js - CORRECTED VERSION
 import jwt from 'jsonwebtoken';
 import { pool } from '../databaseconfig.js';
-import dotenv from 'dotenv';
-
-dotenv.config();
 
 const authMiddleware = async (req, res, next) => {
   try {
@@ -37,22 +34,15 @@ const authMiddleware = async (req, res, next) => {
     console.log('Token received:', token.substring(0, 20) + '...');
      
     try {
-      // ✅ FIX: Added fallback logic. 
-      // It checks .env variables first, but falls back to the string if they are missing.
-      const secretKey = process.env.DB_JWT_SECRET || process.env.JWT_SECRET || 'temporary_fallback_secret_key_2026';
-
-      if (!secretKey) {
-        // This theoretically never happens now because of the fallback string
-        console.error('CRITICAL: JWT Secret could not be determined.');
+      if (!process.env.DB_JWT_SECRET) {
+        console.error('JWT_SECRET is not configured');
         return res.status(500).json({
           success: false,
-          error: 'Server configuration error: Missing JWT Secret'
+          error: 'Server configuration error'
         });
       }
 
-      // ✅ FIX: Verify using the determined secretKey
-      const decoded = jwt.verify(token, secretKey);
-      
+      const decoded = jwt.verify(token, process.env.DB_JWT_SECRET);
       console.log('Token decoded successfully:', { id: decoded.id, role: decoded.role });
        
       const currentTime = Math.floor(Date.now() / 1000);
@@ -67,9 +57,8 @@ const authMiddleware = async (req, res, next) => {
       console.log('Authenticated User:', { id: req.user.id, name: req.user.name, role: req.user.role });
        
       return next();
-
     } catch (error) {
-      console.error('Token verification error:', error.message);
+      console.error('Token verification error:', error);
       
       if (error.name === 'JsonWebTokenError') {
         return res.status(401).json({
@@ -111,7 +100,7 @@ const authMiddleware = async (req, res, next) => {
 const fetchUserDetails = async (decodedToken) => {
   const { id, role } = decodedToken;
   
-  // console.log('Fetching user details for:', { id, role });
+  console.log('Fetching user details for:', { id, role });
    
   try {
     if (role === 'doctor') {

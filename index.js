@@ -1,3 +1,4 @@
+// index.js - UPDATED WITH WHATSAPP SERVICES
 import express from 'express';
 import bodyParser from 'body-parser';
 import cookieParser from 'cookie-parser';
@@ -23,7 +24,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Define allowed origins
+// FIXED: Define allowed origins
 const allowedOrigins = [
   'http://localhost:3001',
   'http://localhost:3000',
@@ -35,10 +36,10 @@ const allowedOrigins = [
   'http://192.168.29.87:3000',  
   'https://uxaah.com',
   'https://www.uxaah.com',
-  'https://uxaah-new.onrender.com',
+  'https://uxah.webartstudios.in', 
+  'https://uxaah.onrender.com',
   'https://uxaah.vercel.app',
-  'https://*.vercel.app',
-  'https://uxah.webartstudios.in'
+  'https://*.vercel.app'
 ];
 
 // Better port handling
@@ -69,16 +70,23 @@ let server;
 // FIXED CORS CONFIGURATION
 app.use(cors({
   origin: function (origin, callback) {
+    console.log('🔍 CORS Origin Check:', origin);
+    
     // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) {
+      console.log('✅ No origin - allowing request');
       return callback(null, true);
     }
     
     if (allowedOrigins.includes(origin)) {
+      console.log('✅ Origin allowed:', origin);
       callback(null, true);
     } else {
-      console.log('⚠️ Development: Allowing origin not in list:', origin);
-      // For development, we allow it anyway to prevent blocking you
+      console.error('❌ CORS blocked origin:', origin);
+      console.log('📋 Allowed origins:', allowedOrigins);
+      
+      // TEMPORARY: For development, allow all origins (REMOVE IN PRODUCTION)
+      console.log('⚠️ DEVELOPMENT MODE: Allowing origin anyway');
       callback(null, true);
     }
   },
@@ -99,9 +107,53 @@ app.use(cors({
   preflightContinue: false
 }));
 
+
+// Database connection test endpoint
+app.get('/api/test-db', async (req, res) => {
+  try {
+    const { pool } = await import('./databaseconfig.js');
+    
+    console.log('🔍 Testing database connection...');
+    console.log('DB_HOST:', process.env.DB_HOST);
+    console.log('DB_USER:', process.env.DB_USER);
+    console.log('DB_NAME:', process.env.DB_NAME);
+    console.log('DB_PORT:', process.env.DB_PORT);
+    console.log('DB_PASSWORD:', process.env.DB_PASSWORD ? 'SET ✓' : 'NOT SET ✗');
+    
+    // Simple query to test connection
+    const [rows] = await pool.query('SELECT 1 + 1 AS result');
+    
+    console.log('✅ Database connected successfully!');
+    
+    res.json({ 
+      success: true, 
+      message: 'Database connected successfully!',
+      result: rows[0].result,
+      host: process.env.DB_HOST,
+      database: process.env.DB_NAME
+    });
+  } catch (error) {
+    console.error('❌ Database connection failed:', error);
+    
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      code: error.code,
+      sqlState: error.sqlState,
+      errno: error.errno
+    });
+  }
+});
+
 // Simple logging middleware
 app.use((req, res, next) => {
   console.log(`🌐 ${req.method} ${req.path} from ${req.headers.origin || 'no-origin'}`);
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    console.log('✅ Handling OPTIONS preflight request');
+  }
+  
   next();
 });
 
@@ -138,16 +190,20 @@ console.log('- Frontend dist:', frontendDistPath, existsSync(frontendDistPath) ?
 // Serve static files
 app.use('/style.css', (req, res, next) => {
   const cssPath = path.join(frontendSrcPath, 'style.css');
+  console.log('📄 CSS request - looking for:', cssPath);
+  
   if (existsSync(cssPath)) {
     res.set('Content-Type', 'text/css');
     res.sendFile(cssPath);
   } else {
+    console.log('❌ CSS file not found at:', cssPath);
     res.status(404).send('CSS file not found');
   }
 });
 
 app.use('/src', express.static(frontendSrcPath, {
   setHeaders: (res, filePath) => {
+    console.log('📁 Serving from src:', filePath);
     if (filePath.endsWith('.css')) {
       res.set('Content-Type', 'text/css');
     } else if (filePath.endsWith('.js') || filePath.endsWith('.jsx')) {
@@ -160,6 +216,7 @@ app.use('/src', express.static(frontendSrcPath, {
 
 app.use(express.static(frontendPublicPath, {
   setHeaders: (res, filePath) => {
+    console.log('📁 Serving from public:', filePath);
     if (filePath.endsWith('.css')) {
       res.set('Content-Type', 'text/css');
     } else if (filePath.endsWith('.js')) {
@@ -201,7 +258,13 @@ app.get('/cors-test', (req, res) => {
     message: 'CORS is working perfectly!',
     origin: req.headers.origin,
     timestamp: new Date().toISOString(),
-    allowedOrigins: allowedOrigins
+    allowedOrigins: allowedOrigins,
+    method: req.method,
+    headers: {
+      origin: req.headers.origin,
+      'user-agent': req.headers['user-agent'],
+      'accept': req.headers.accept
+    }
   });
 });
 
@@ -282,6 +345,9 @@ const startServer = async () => {
     // Connection error handling
     io.engine.on("connection_error", (err) => {
       console.log('Socket.IO connection error:', err.req);
+      console.log('Error code:', err.code);
+      console.log('Error message:', err.message);
+      console.log('Error context:', err.context);
     });
 
     // Health check route
@@ -298,6 +364,8 @@ const startServer = async () => {
         }
       });
     });
+
+    
 
     // Axios defaults
     axios.defaults.baseURL = process.env.BASE_URL || `http://localhost:${port}`;
@@ -346,6 +414,14 @@ const startServer = async () => {
       } catch (error) {
         console.error('❌ Failed to start notification service:', error);
       }
+      
+      // Start old reminder scheduler (if you want to keep it)
+      // try {
+      //   const reminderScheduler = startReminderScheduler();
+      //   console.log('✅ Old reminder scheduler started');
+      // } catch (error) {
+      //   console.error('❌ Failed to start old reminder scheduler:', error);
+      // }
       
       // NEW: Start WhatsApp notification scheduler
       try {

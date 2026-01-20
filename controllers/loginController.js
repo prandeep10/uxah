@@ -35,9 +35,8 @@ export const login = async (req, res) => {
 
     const user = results[0];
     console.log('👤 User found:', user.email);
-    // Truncate hash for logging safety
     console.log('🔐 Password hash from DB:', 
-      user.Password ? user.Password.substring(0, 20) + '...' : 'UNDEFINED');
+    user.Password.substring(0, 20) + '...');
     console.log('🔑 Password provided:', password);
 
     const isMatch = await bcrypt.compare(password, user.Password);
@@ -57,11 +56,7 @@ export const login = async (req, res) => {
       role: 'client'
     };
 
-    // ✅ FIXED: Added fallback keys so it never crashes
-    // It checks DB_JWT_SECRET, then JWT_SECRET, then defaults to a string
-    const secretKey = process.env.DB_JWT_SECRET || process.env.JWT_SECRET || 'temporary_fallback_secret_key_2026';
-    
-    const token = jwt.sign(tokenPayload, secretKey, {
+    const token = jwt.sign(tokenPayload, process.env.DB_JWT_SECRET, {
       expiresIn: '24h'
     });
 
